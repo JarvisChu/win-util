@@ -1,11 +1,11 @@
-# win-utils
+# win-util
 
 Utils for Windows
 
 # Usage
 
 ```
-npm install win-utils
+npm install win-util
 ```
 
 # Example
@@ -13,7 +13,7 @@ npm install win-utils
 Please refer to `test/test.js`
 
 ```javascript
-var record = require('win-utils')
+var winutils = require('win-util')
 
 var msgid = winutils().RegisterWindowMessage('TaskbarCreated')
 console.info('msgid:', msgid)
