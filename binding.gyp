@@ -1,7 +1,7 @@
 {
 	"targets": [
 		{
-			"target_name": "win-utils-addon",
+			"target_name": "win-util-addon",
 			"sources": [
 				'<!@(ls -1 src/*.cc)',
 			],

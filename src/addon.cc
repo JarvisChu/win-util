@@ -25,4 +25,4 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   return exports;
 }
 
-NODE_API_MODULE(win_utils_addon, Init)
+NODE_API_MODULE(win_util_addon, Init)

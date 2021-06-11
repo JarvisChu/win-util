@@ -1,4 +1,4 @@
-var addon = require('bindings')('win-utils-addon.node')
+var addon = require('bindings')('win-util-addon.node')
 
 module.exports = function(){
   this.RegisterWindowMessage = function(...props){

@@ -1,24 +1,25 @@
 {
-  "name": "win-utils",
-  "version": "0.0.1",
+  "name": "win-util",
+  "version": "0.0.2",
   "description": "utils for Windows",
   "main": "index.js",
   "author": "JarvisChu <jarvischu@126.com>",
   "license": "MIT",
   "keywords": [
     "windows",
+    "util",
     "utils"
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/JarvisChu/win-utils.git"
+    "url": "git+https://github.com/JarvisChu/win-util.git"
   },
   "bugs": {
-    "url": "https://github.com/JarvisChu/win-utils/issues"
+    "url": "https://github.com/JarvisChu/win-util/issues"
   },
-  "homepage": "https://github.com/JarvisChu/win-utils#readme",
+  "homepage": "https://github.com/JarvisChu/win-util#readme",
   "dependencies": {
-    "bindings": "~1.2.1",
-    "node-addon-api": "^1.0.0"
+    "bindings": "^1.2.1",
+    "node-addon-api": "^1.7.2"
   }
 }
