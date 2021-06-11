@@ -1,4 +1,4 @@
-var winutils = require('../')
+var winutil = require('../')
 
-var msgid = winutils().RegisterWindowMessage('TaskbarCreated')
+var msgid = winutil().RegisterWindowMessage('TaskbarCreated')
 console.info('msgid:', msgid)

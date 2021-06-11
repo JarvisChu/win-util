@@ -13,8 +13,8 @@ npm install win-util
 Please refer to `test/test.js`
 
 ```javascript
-var winutils = require('win-util')
+var winutil = require('win-util')
 
-var msgid = winutils().RegisterWindowMessage('TaskbarCreated')
+var msgid = winutil().RegisterWindowMessage('TaskbarCreated')
 console.info('msgid:', msgid)
 ```

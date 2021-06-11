@@ -1,7 +1,7 @@
 {
   "name": "win-util",
-  "version": "0.0.2",
-  "description": "utils for Windows",
+  "version": "0.0.3",
+  "description": "Utils for Windows",
   "main": "index.js",
   "author": "JarvisChu <jarvischu@126.com>",
   "license": "MIT",
