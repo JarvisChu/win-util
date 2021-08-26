@@ -26,7 +26,7 @@ Napi::Value RegisterWindowMessageFunc(const Napi::CallbackInfo& info) {
   return Napi::Number::New(env, WM_ID);
 }
 
-HRESULT SetVolume(int volume) {
+HRESULT SetSystemVolumeInternal(int volume) {
   
   HRESULT hr;
   IMMDeviceEnumerator *deviceEnumerator = NULL;
@@ -58,6 +58,37 @@ Exit:
   return hr;
 }
 
+float GetSystemVolumeInternal() {
+  HRESULT hr;
+  IMMDeviceEnumerator *deviceEnumerator = NULL;
+  IMMDevice *defaultDevice = NULL;
+  IAudioEndpointVolume *endpointVolume = NULL;
+  float currentVolume = -0.01; // -1 for error
+
+  hr = CoInitialize(NULL);
+  EXIT_ON_ERROR(hr);
+
+  hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_INPROC_SERVER, __uuidof(IMMDeviceEnumerator), (LPVOID *)&deviceEnumerator);
+  EXIT_ON_ERROR(hr);
+
+  hr = deviceEnumerator->GetDefaultAudioEndpoint(eRender, eConsole, &defaultDevice);
+  EXIT_ON_ERROR(hr);
+
+  hr = defaultDevice->Activate(__uuidof(IAudioEndpointVolume), CLSCTX_INPROC_SERVER, NULL, (LPVOID *)&endpointVolume);
+  EXIT_ON_ERROR(hr);
+
+  hr = endpointVolume->GetMasterVolumeLevelScalar(&currentVolume);
+  EXIT_ON_ERROR(hr);
+
+Exit:
+  SAFE_RELEASE(deviceEnumerator);
+  SAFE_RELEASE(defaultDevice);
+  SAFE_RELEASE(endpointVolume);
+  CoUninitialize();
+
+  return currentVolume;
+}  
+
 Napi::Value SetSystemVolumeFunc(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
 
@@ -78,7 +109,7 @@ Napi::Value SetSystemVolumeFunc(const Napi::CallbackInfo& info) {
     return env.Null();
   }
 
-  HRESULT hr = SetVolume(volume);
+  HRESULT hr = SetSystemVolumeInternal(volume);
   if(FAILED(hr)){
     std::ostringstream stream;
 		stream << "set volume failed, hr=0x" << std::hex << hr;
@@ -89,9 +120,18 @@ Napi::Value SetSystemVolumeFunc(const Napi::CallbackInfo& info) {
   return Napi::Number::New(env, 0);
 }
 
+Napi::Value GetSystemVolumeFunc(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+
+  float v = GetSystemVolumeInternal();
+  int volume = (int) (v * 100);
+  return Napi::Number::New(env, volume);
+}
+
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set(Napi::String::New(env, "RegisterWindowMessageFunc"), Napi::Function::New(env, RegisterWindowMessageFunc));
   exports.Set(Napi::String::New(env, "SetSystemVolumeFunc"), Napi::Function::New(env, SetSystemVolumeFunc));
+  exports.Set(Napi::String::New(env, "GetSystemVolumeFunc"), Napi::Function::New(env, GetSystemVolumeFunc));
   return exports;
 }
 

@@ -4,6 +4,7 @@ Utils for Windows, current function list as below:
 
 - RegisterWindowMessage:
 - SetSystemVolume
+- GetSystemVolume
 
 # Build
 

@@ -9,5 +9,10 @@ module.exports = function(){
     return addon.SetSystemVolumeFunc(...props)
   }
 
-  return {RegisterWindowMessage, SetSystemVolume}
+  // -1 error
+  let GetSystemVolume = function(...props){
+    return addon.GetSystemVolumeFunc(...props)
+  }
+
+  return {RegisterWindowMessage, SetSystemVolume, GetSystemVolume}
 }
