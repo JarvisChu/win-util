@@ -4,5 +4,10 @@ module.exports = function(){
   let RegisterWindowMessage = function(...props){
     return addon.RegisterWindowMessageFunc(...props)
   }
-  return {RegisterWindowMessage}
+
+  let SetSystemVolume = function(...props){
+    return addon.SetSystemVolumeFunc(...props)
+  }
+
+  return {RegisterWindowMessage, SetSystemVolume}
 }

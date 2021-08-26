@@ -1,14 +1,29 @@
 # win-util
 
-Utils for Windows
+Utils for Windows, current function list as below:
 
-# Usage
+- RegisterWindowMessage:
+- SetSystemVolume
 
+# Build
+
+```bash
+node-gyp configure build
 ```
+
+## Test
+
+```bash
+node test/test.js
+```
+
+## Usage
+
+```bash
 npm install win-util
 ```
 
-# Example
+## Example
 
 Please refer to `test/test.js`
 
