@@ -1,4 +1,3 @@
-var events = require('events')
 var addon = require('bindings')('win-util-addon.node')
 
 module.exports = function(){
