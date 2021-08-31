@@ -7,8 +7,9 @@
 
 // Data structure representing our thread-safe function context.
 struct TsfnContext {
-  TsfnContext(Napi::Env env) /*: deferred(Napi::Promise::Deferred::New(env))*/ {
+  TsfnContext(Napi::Env env, EDataFlow edf) /*: deferred(Napi::Promise::Deferred::New(env))*/ {
     volume = 0;
+    dataFlow = edf;
 
     static int gid = 0;
     gid = (gid++) % INT_MAX;
@@ -20,6 +21,9 @@ struct TsfnContext {
 
   // Native thread
   std::thread nativeThread;
+
+  // data flow type, eRender: speaker, eCapture: microphone
+  EDataFlow dataFlow = eRender;
 
   // varible to hold volume
   int volume;
@@ -41,7 +45,7 @@ void threadEntry(TsfnContext* context) {
   };
 
   HANDLE hEventStop = CreateEvent(NULL,FALSE,FALSE,NULL);
-  HRESULT hr = VolumeCtl::GetInstance().RegisterControlChangeNotify(context->id, [&](int volume, int errcode){
+  auto volumeChangeCallback = [&](int volume, int errcode){
     printf("threadEntry volume: %d, errcode:%d\n", volume, errcode);
 
     if(errcode != 0){
@@ -52,7 +56,14 @@ void threadEntry(TsfnContext* context) {
     context->volume = volume;
     napi_status status = context->tsfn.BlockingCall(&context->volume, callback); // Perform a call into JavaScript.
     if (status != napi_ok) { Napi::Error::Fatal("ThreadEntry","Napi::ThreadSafeNapi::Function.BlockingCall() failed");}
-  });
+  };
+
+  HRESULT hr;
+  if(context->dataFlow == eRender){
+    hr = VolumeCtl::SpeakerVolumeCtl::GetInstance().RegisterControlChangeNotify(context->id, volumeChangeCallback);
+  }else{
+    hr = VolumeCtl::MicrophoneVolumeCtl::GetInstance().RegisterControlChangeNotify(context->id, volumeChangeCallback);
+  }
 
   if(SUCCEEDED(hr)){
     // waitting to stop
@@ -105,20 +116,37 @@ Napi::Value SetSystemVolumeFunc(const Napi::CallbackInfo& info) {
     Napi::TypeError::New(env, "Wrong number of arguments").ThrowAsJavaScriptException();
     return env.Null();
   }
-
-  if (!info[0].IsNumber()) {
+  
+  int volume = 0;
+  EDataFlow edf = eRender; // default Speaker
+  
+  if (info.Length() == 1 && info[0].IsNumber()){
+    volume = info[0].As<Napi::Number>().Int32Value();
+  }
+  
+  else if(info.Length() == 2 && info[0].IsString() && info[1].IsNumber()){
+    std::string sType = (std::string) info[0].ToString();
+    if(sType == "speaker") { edf = eRender; }
+    else if(sType == "microphone") { edf = eCapture; }
+    else{
+      Napi::TypeError::New(env, "Wrong arguments, invalid device type").ThrowAsJavaScriptException();
+      return env.Null();
+    }
+    volume = info[1].As<Napi::Number>().Int32Value();
+  }
+  
+  else{
     Napi::TypeError::New(env, "Wrong arguments").ThrowAsJavaScriptException();
     return env.Null();
   }
 
-  int volume = info[0].As<Napi::Number>().Int32Value();
-  printf("[SetSystemVolume] volume:%d\n", volume);
+  printf("[SetSystemVolume] deviceType:%d, volume:%d\n", edf, volume);
   if(volume < 0 || volume > 100 ){
     Napi::TypeError::New(env, "invalid volume value").ThrowAsJavaScriptException();
     return env.Null();
   }
 
-  HRESULT hr = VolumeCtl::SetSystemVolume(volume);
+  HRESULT hr = VolumeCtl::SetSystemVolume(edf, volume);
   if(FAILED(hr)){
     std::ostringstream stream;
 		stream << "set volume failed, hr=0x" << std::hex << hr;
@@ -132,7 +160,19 @@ Napi::Value SetSystemVolumeFunc(const Napi::CallbackInfo& info) {
 Napi::Value GetSystemVolumeFunc(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
 
-  float v = VolumeCtl::GetSystemVolume();
+  EDataFlow edf = eRender; // default Speaker
+
+  if (info.Length() >= 1 && info[0].IsString()){
+    std::string sType = (std::string) info[0].ToString();
+    if(sType == "speaker") { edf = eRender; }
+    else if(sType == "microphone") { edf = eCapture; }
+    else{
+      Napi::TypeError::New(env, "Wrong arguments, invalid device type").ThrowAsJavaScriptException();
+      return env.Null();
+    }
+  }
+
+  float v = VolumeCtl::GetSystemVolume(edf);
   int volume = (int) (v * 100);
   return Napi::Number::New(env, volume);
 }
@@ -142,29 +182,41 @@ Napi::Value GetSystemVolumeFunc(const Napi::CallbackInfo& info) {
 Napi::Value StartListenSystemVolumeChangeFunc(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
 
-  if (info.Length() < 1) {
-    Napi::TypeError::New(env, "Wrong number of arguments").ThrowAsJavaScriptException();
-    return env.Null();
+  EDataFlow edf = eRender; // default Speaker
+  int funcIdx = 0; // default info[0]
+  if(info.Length() == 1 && info[0].IsFunction()){
+    // default
   }
 
-  if (!info[0].IsFunction()) {
+  else if(info.Length() == 2 && info[0].IsString() && info[1].IsFunction()){
+    std::string sType = (std::string) info[0].ToString();
+    if(sType == "speaker") { edf = eRender; }
+    else if(sType == "microphone") { edf = eCapture; }
+    else{
+      Napi::TypeError::New(env, "Wrong arguments, invalid device type").ThrowAsJavaScriptException();
+      return env.Null();
+    }
+    funcIdx = 1;
+  }
+
+  else {
     Napi::TypeError::New(env, "Wrong arguments").ThrowAsJavaScriptException();
     return env.Null();
   }
 
   // Construct context data
-  auto ctx = new TsfnContext(env);
+  auto ctx = new TsfnContext(env, edf);
 
   // Create a new ThreadSafeFunction.
   ctx->tsfn = Napi::ThreadSafeFunction::New(
-      env,                           // Environment
-      info[0].As<Napi::Function>(),  // JS function from caller
-      "TSFN",                        // Resource name
-      0,                             // Max queue size (0 = unlimited).
-      1,                             // Initial thread count
-      ctx,                           // Context,
-      FinalizerCallback,             // Finalizer
-      (void*)nullptr                 // Finalizer data
+      env,                                 // Environment
+      info[funcIdx].As<Napi::Function>(),  // JS function from caller
+      "TSFN",                              // Resource name
+      0,                                   // Max queue size (0 = unlimited).
+      1,                                   // Initial thread count
+      ctx,                                 // Context,
+      FinalizerCallback,                   // Finalizer
+      (void*)nullptr                       // Finalizer data
   );
   ctx->nativeThread = std::thread(threadEntry, ctx);
 
@@ -188,14 +240,16 @@ Napi::Value StopListenSystemVolumeChangeFunc(const Napi::CallbackInfo& info){
   }
 
   int id = info[0].As<Napi::Number>().Int32Value();
-  VolumeCtl::GetInstance().UnRegisterControlChangeNotify(id);
+  VolumeCtl::SpeakerVolumeCtl::GetInstance().UnRegisterControlChangeNotify(id);
+  VolumeCtl::MicrophoneVolumeCtl::GetInstance().UnRegisterControlChangeNotify(id);
 
   return env.Undefined();
 }
 
 Napi::Value StopAllListenSystemVolumeChangeFunc(const Napi::CallbackInfo& info){
   Napi::Env env = info.Env();
-  VolumeCtl::GetInstance().UnRegisterAllControlChangeNotify();
+  VolumeCtl::SpeakerVolumeCtl::GetInstance().UnRegisterAllControlChangeNotify();
+  VolumeCtl::MicrophoneVolumeCtl::GetInstance().UnRegisterAllControlChangeNotify();
   return env.Undefined();
 }
 

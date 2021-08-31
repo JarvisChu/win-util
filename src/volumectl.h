@@ -8,37 +8,55 @@
 #include <functional>
 #include <map>
 
-class VolumeCtl : public IAudioEndpointVolumeCallback {
-public:
-    static VolumeCtl& GetInstance(){
-        static VolumeCtl inst;
-        return inst;
+namespace VolumeCtl {
+    HRESULT SetSystemVolume(EDataFlow edf, int volume);
+    float GetSystemVolume(EDataFlow edf);
+
+    class DeviceVolumeCtl: public IAudioEndpointVolumeCallback{
+    public:
+        DeviceVolumeCtl(EDataFlow e);
+        virtual ~DeviceVolumeCtl();
+        HRESULT RegisterControlChangeNotify(int id, std::function<void(int,int)> callback);
+        void UnRegisterControlChangeNotify(int id);
+        void UnRegisterAllControlChangeNotify();
+    
+        // IUnknown methods -- AddRef, Release, and QueryInterface
+        ULONG STDMETHODCALLTYPE AddRef();
+        ULONG STDMETHODCALLTYPE Release();
+        HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, VOID **ppvInterface);
+
+        // IAudioEndpointVolumeCallback: Callback method for endpoint-volume-change notifications.
+        HRESULT STDMETHODCALLTYPE OnNotify(PAUDIO_VOLUME_NOTIFICATION_DATA pNotify);
+    protected:
+        EDataFlow m_dataFlow = eRender;
+        LONG m_cRef;
+        IAudioEndpointVolume *m_pEndpointVolume = NULL;
+
+        CRITICAL_SECTION m_cs;
+        std::map<int, std::function<void(int,int)> > m_callbacks;
     };
 
-    static HRESULT SetSystemVolume(int volume);
-    static float GetSystemVolume();
+    class SpeakerVolumeCtl: public DeviceVolumeCtl {
+    public:
+        static SpeakerVolumeCtl& GetInstance(){
+            static SpeakerVolumeCtl inst;
+            return inst;
+        };
+    private:
+        SpeakerVolumeCtl():DeviceVolumeCtl(eRender){};
+        ~SpeakerVolumeCtl(){};
+    };
 
-    HRESULT RegisterControlChangeNotify(int id, std::function<void(int,int)> callback);
-    void UnRegisterControlChangeNotify(int id);
-    void UnRegisterAllControlChangeNotify();
-    
-    // IUnknown methods -- AddRef, Release, and QueryInterface
-    ULONG STDMETHODCALLTYPE AddRef();
-    ULONG STDMETHODCALLTYPE Release();
-    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, VOID **ppvInterface);
-
-    // IAudioEndpointVolumeCallback: Callback method for endpoint-volume-change notifications.
-    HRESULT STDMETHODCALLTYPE OnNotify(PAUDIO_VOLUME_NOTIFICATION_DATA pNotify);
-
-private:
-    VolumeCtl();
-    ~VolumeCtl();
-   
-private:
-    LONG m_cRef;
-    IAudioEndpointVolume *m_pEndpointVolume = NULL;
-    CRITICAL_SECTION m_cs;
-    std::map<int, std::function<void(int,int)> > m_callbacks;
-};
+    class MicrophoneVolumeCtl: public DeviceVolumeCtl {
+    public:
+        static MicrophoneVolumeCtl& GetInstance(){
+            static MicrophoneVolumeCtl inst;
+            return inst;
+        };
+    private:
+        MicrophoneVolumeCtl():DeviceVolumeCtl(eCapture){};
+        ~MicrophoneVolumeCtl(){};
+    };
+}; // namespace VolumeCtl
 
 #endif
