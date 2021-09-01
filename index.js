@@ -34,12 +34,22 @@ module.exports = function(){
     return addon.StopAllListenSystemVolumeChangeFunc(...props)
   }
 
+  let Encrypt = function(...props){
+    return addon.EncryptFunc(...props)
+  }
+
+  let Decrypt = function(...props){
+    return addon.DecryptFunc(...props)
+  }
+
   return {
     RegisterWindowMessage, 
     SetSystemVolume, 
     GetSystemVolume, 
     StartListenSystemVolumeChange,
     StopListenSystemVolumeChange,
-    StopAllListenSystemVolumeChange
+    StopAllListenSystemVolumeChange,
+    Encrypt,
+    Decrypt
   }
 }

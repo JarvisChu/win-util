@@ -1,9 +1,11 @@
 ﻿#include <napi.h>
 #include <Windows.h>
+#include <Wincrypt.h>
 #include <sstream>
 #include <thread>
 #include <limits.h>
 #include "volumectl.h"
+#pragma comment(lib, "crypt32.lib")
 
 // Data structure representing our thread-safe function context.
 struct TsfnContext {
@@ -87,6 +89,94 @@ void FinalizerCallback(Napi::Env env, void* finalizeData, TsfnContext* context) 
   // Resolve the Promise previously returned to JS via the CreateTSFN method.
   //context->deferred.Resolve(Napi::Boolean::New(env, true));
   delete context;
+}
+
+
+
+bool Base64Encode(const std::string& from, std::string& to) {
+	DWORD dwLen;
+	if (!CryptBinaryToStringA((const BYTE*) from.data(), from.size(), CRYPT_STRING_BASE64, NULL, &dwLen)) {
+		printf("CryptBinaryToStringA get length failed, errcode:%x\n", GetLastError());
+		return false;
+	}
+
+	to.resize(dwLen);
+	if (!CryptBinaryToStringA((const BYTE*)from.data(), from.size(), CRYPT_STRING_BASE64, &to[0], &dwLen)) {
+		printf("CryptBinaryToStringA failed, errcode:%x\n", GetLastError());
+		return false;
+	}
+
+	return true;
+}
+
+bool Base64Decode(const std::string& from, std::string& to) {
+	DWORD dwLen;
+	if (!CryptStringToBinaryA(from.data(), from.size(), CRYPT_STRING_BASE64, NULL, &dwLen, NULL, NULL)) {
+		printf("CryptStringToBinaryA get length failed, errcode:%x\n", GetLastError());
+		return false;
+	}
+
+	to.resize(dwLen);
+	if (!CryptStringToBinaryA(from.data(), from.size(), CRYPT_STRING_BASE64, (BYTE*) &to[0], &dwLen, NULL, NULL)) {
+		printf("CryptStringToBinaryA failed, errcode:%x\n", GetLastError());
+		return false;
+	}
+
+	return true;
+}
+
+bool EncryptStringWithDPAPI(const std::string& plaintext, const std::string& entropy, std::string& ciphertext) {
+	DATA_BLOB input;
+	input.pbData = const_cast<BYTE*>(reinterpret_cast<const BYTE*>(plaintext.data()));
+	input.cbData = static_cast<DWORD>(plaintext.length());
+
+	DATA_BLOB dbEntropy;
+	if (entropy.size() > 0) {
+		dbEntropy.pbData = const_cast<BYTE*>(reinterpret_cast<const BYTE*>(entropy.data()));
+		dbEntropy.cbData = static_cast<DWORD>(entropy.length());
+	}
+
+	DATA_BLOB output;
+	BOOL result = CryptProtectData(&input, L"", entropy.size() > 0 ? &dbEntropy : nullptr, nullptr, nullptr, 0, &output);
+	if (!result) {
+		printf("CryptProtectData failed, errcode:%x \n", GetLastError());
+		return false;
+	}
+
+	std::string cipherBin;
+	cipherBin.assign(reinterpret_cast<std::string::value_type*>(output.pbData), output.cbData);
+	LocalFree(output.pbData);
+
+	return Base64Encode(cipherBin, ciphertext);
+}
+
+bool DecryptStringWithDPAPI(const std::string& ciphertext, const std::string& entropy, std::string& plaintext) {
+	std::string cipher;
+	if (!Base64Decode(ciphertext, cipher)) {
+		return false;
+	}
+
+	DATA_BLOB input;
+	input.pbData = const_cast<BYTE*>(reinterpret_cast<const BYTE*>(cipher.data()));
+	input.cbData = static_cast<DWORD>(cipher.length());
+
+	DATA_BLOB dbEntropy;
+	if (entropy.size() > 0) {
+		dbEntropy.pbData = const_cast<BYTE*>(reinterpret_cast<const BYTE*>(entropy.data()));
+		dbEntropy.cbData = static_cast<DWORD>(entropy.length());
+	}
+
+	DATA_BLOB output;
+	BOOL result = CryptUnprotectData(&input, nullptr, entropy.size() > 0 ? &dbEntropy : nullptr, nullptr, nullptr, 0, &output);
+	if (!result) {
+		printf("CryptUnprotectData failed, errcode:%x\n", GetLastError());
+		return false;
+	}
+
+	plaintext.assign(reinterpret_cast<char*>(output.pbData), output.cbData);
+	LocalFree(output.pbData);
+
+	return true;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////
@@ -253,6 +343,64 @@ Napi::Value StopAllListenSystemVolumeChangeFunc(const Napi::CallbackInfo& info){
   return env.Undefined();
 }
 
+Napi::Value EncryptFunc(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+
+  if (info.Length() < 1) {
+    Napi::TypeError::New(env, "Wrong number of arguments").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  if (!info[0].IsString()) {
+    Napi::TypeError::New(env, "Wrong arguments").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  std::string entropy;
+  if(info.Length() >= 2 && info[1].IsString()){
+    entropy = (std::string) info[1].ToString();
+  }
+  std::string plainText = (std::string) info[0].ToString();
+
+  std::string cipherText;
+  bool bRet = EncryptStringWithDPAPI(plainText, entropy, cipherText);
+  if(!bRet){
+    Napi::Error::New(env, "encrypt failed").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  return Napi::String::New(env, cipherText);
+}
+
+Napi::Value DecryptFunc(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+
+  if (info.Length() < 1) {
+    Napi::TypeError::New(env, "Wrong number of arguments").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  if (!info[0].IsString()) {
+    Napi::TypeError::New(env, "Wrong arguments").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  std::string entropy;
+  if(info.Length() >= 2 && info[1].IsString()){
+    entropy = (std::string) info[1].ToString();
+  }
+  std::string cipherText = (std::string) info[0].ToString();
+
+  std::string plainText;
+  bool bRet = DecryptStringWithDPAPI(cipherText, entropy, plainText);
+  if(!bRet){
+    Napi::Error::New(env, "decrypt failed").ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  return Napi::String::New(env, plainText);
+}
+
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set(Napi::String::New(env, "RegisterWindowMessageFunc"), Napi::Function::New(env, RegisterWindowMessageFunc));
   exports.Set(Napi::String::New(env, "SetSystemVolumeFunc"), Napi::Function::New(env, SetSystemVolumeFunc));
@@ -260,6 +408,8 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set(Napi::String::New(env, "StartListenSystemVolumeChangeFunc"), Napi::Function::New(env, StartListenSystemVolumeChangeFunc));
   exports.Set(Napi::String::New(env, "StopListenSystemVolumeChangeFunc"), Napi::Function::New(env, StopListenSystemVolumeChangeFunc));
   exports.Set(Napi::String::New(env, "StopAllListenSystemVolumeChangeFunc"), Napi::Function::New(env, StopAllListenSystemVolumeChangeFunc));
+  exports.Set(Napi::String::New(env, "EncryptFunc"), Napi::Function::New(env, EncryptFunc));
+  exports.Set(Napi::String::New(env, "DecryptFunc"), Napi::Function::New(env, DecryptFunc));
 
   return exports;
 }

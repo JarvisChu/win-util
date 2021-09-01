@@ -8,6 +8,8 @@ Utils for Windows, current function list as below:
 - StartListenSystemVolumeChange
 - StopListenSystemVolumeChange
 - StopAllListenSystemVolumeChange
+- Encrypt: based on Windows API CryptProtectData
+- Decrypt: based on Windows API CryptUnprotectData
 
 # Build
 

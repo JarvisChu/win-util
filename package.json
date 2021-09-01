@@ -1,6 +1,6 @@
 {
   "name": "win-util",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "Utils for Windows",
   "main": "index.js",
   "author": "JarvisChu <jarvischu@126.com>",

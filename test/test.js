@@ -33,3 +33,16 @@ setTimeout(function () {
     winutil().StopListenSystemVolumeChange(id1)
     // or using winutil().StopAllListenSystemVolumeChange()
 }, 10000)
+
+// test Encrypt
+cipher1 = winutil().Encrypt("my plain text")
+cipher2 = winutil().Encrypt("my plain text again", "any text as entropy")
+console.info("cipher1:", cipher1, cipher1.length)
+console.info("cipher2:", cipher2, cipher2.length)
+
+// test Decrypt
+plain1 = winutil().Decrypt(cipher1)
+plain2 = winutil().Decrypt(cipher2, "any text as entropy") // MUST using the same entropy used by Encrypt
+console.info("plain1:", plain1, plain1.length)
+console.info("plain2:", plain2, plain2.length)
+ 
