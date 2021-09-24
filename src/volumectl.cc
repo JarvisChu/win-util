@@ -166,17 +166,24 @@ void DeviceVolumeCtl::UnRegisterControlChangeNotify(int id){
     printf("VolumeCtl::UnRegisterControlChangeNotify, device:%d, id=%d\n", m_dataFlow, id);
 
     // unregister
-    it->second(0,-1); // error code -1, notify to thread to stop  
+    it->second(0,-1); // error code -1, notify to thread to stop
+    printf("VolumeCtl::UnRegisterControlChangeNotify, 1\n");
     m_callbacks.erase(it);
+    printf("VolumeCtl::UnRegisterControlChangeNotify, 2\n");
+    
 
     // UnregisterControlChangeNotify if no callbacks any more
     if(m_callbacks.size() == 0) {
         if(m_pEndpointVolume){
+            printf("VolumeCtl::UnRegisterControlChangeNotify, 3\n");
             m_pEndpointVolume->UnregisterControlChangeNotify((IAudioEndpointVolumeCallback*)this);
             SAFE_RELEASE(m_pEndpointVolume);
+            printf("VolumeCtl::UnRegisterControlChangeNotify, 4\n");
         }
     }
     LeaveCriticalSection(&m_cs);
+
+    printf("VolumeCtl::UnRegisterControlChangeNotify, out, device:%d, id=%d\n", m_dataFlow, id);
 }
 
 void DeviceVolumeCtl::UnRegisterAllControlChangeNotify()

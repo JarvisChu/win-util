@@ -55,9 +55,13 @@ void threadEntry(TsfnContext* context) {
       return;
     }
 
+    printf("threadEntry 1\n");
+
     context->volume = volume;
     napi_status status = context->tsfn.BlockingCall(&context->volume, callback); // Perform a call into JavaScript.
-    if (status != napi_ok) { Napi::Error::Fatal("ThreadEntry","Napi::ThreadSafeNapi::Function.BlockingCall() failed");}
+    printf("threadEntry 2\n");
+    if (status != napi_ok) { Napi::Error::Fatal("ThreadEntry","Napi::ThreadSafeNapi::Function.BlockingCall() failed"); printf("threadEntry 3\n");}
+    printf("threadEntry out\n");
   };
 
   HRESULT hr;
