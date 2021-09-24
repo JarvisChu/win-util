@@ -1,4 +1,6 @@
 #include "volumectl.h"
+#include <sstream>
+#include <excpt.h>
 
 #define EXIT_ON_ERROR(hr) { if (FAILED(hr)) { goto Exit; } }
 #define SAFE_RELEASE(punk) { if ((punk) != NULL) { (punk)->Release(); (punk) = NULL; } }
@@ -166,7 +168,15 @@ void DeviceVolumeCtl::UnRegisterControlChangeNotify(int id){
     printf("VolumeCtl::UnRegisterControlChangeNotify, device:%d, id=%d\n", m_dataFlow, id);
 
     // unregister
-    it->second(0,-1); // error code -1, notify to thread to stop  
+    __try{
+        it->second(0,-1); // error code -1, notify to thread to stop  
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER ){
+        std::ostringstream stream;
+        stream << "UnRegisterControlChangeNotify crashed, exception code = 0x" << std::hex << GetExceptionCode();
+        printf("e: %s\n", stream.str().c_str());
+    }
+
     m_callbacks.erase(it);
 
     // UnregisterControlChangeNotify if no callbacks any more
@@ -185,7 +195,14 @@ void DeviceVolumeCtl::UnRegisterAllControlChangeNotify()
 
     EnterCriticalSection(&m_cs);
     for(auto it = m_callbacks.begin(); it != m_callbacks.end(); it++){
-        it->second(0,-1); // error code -1, notify to thread to stop
+        __try{
+            it->second(0,-1); // error code -1, notify to thread to stop  
+        }
+        __except(EXCEPTION_EXECUTE_HANDLER ){
+            std::ostringstream stream;
+            stream << "UnRegisterAllControlChangeNotify crashed, exception code = 0x" << std::hex << GetExceptionCode();
+            printf("e: %s\n", stream.str().c_str());
+        }
     }
 
     m_callbacks.clear();
@@ -204,7 +221,15 @@ HRESULT STDMETHODCALLTYPE DeviceVolumeCtl::OnNotify(PAUDIO_VOLUME_NOTIFICATION_D
 
     EnterCriticalSection(&m_cs);
     for(auto it = m_callbacks.begin(); it != m_callbacks.end(); it++) {
-        it->second(volume, 0);
+        
+        __try{
+            it->second(volume, 0);
+        }
+        __except(EXCEPTION_EXECUTE_HANDLER ){
+            std::ostringstream stream;
+            stream << "OnNotify crashed, exception code = 0x" << std::hex << GetExceptionCode();
+            printf("e: %s\n", stream.str().c_str());
+        }
     }
     LeaveCriticalSection(&m_cs);
 
