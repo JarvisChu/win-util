@@ -4,8 +4,20 @@
 #include <sstream>
 #include <thread>
 #include <limits.h>
+#include <sstream>
+#include <excpt.h>
 #include "volumectl.h"
 #pragma comment(lib, "crypt32.lib")
+
+#define ADDON_TRY __try{
+#define ADDON_CATCH  }\
+  __except(EXCEPTION_EXECUTE_HANDLER ){\
+    std::ostringstream stream;\
+    stream << __FUNCTION__<< ", internal error, exception code = 0x" << std::hex << GetExceptionCode();\
+    printf("e: %s\n", stream.str().c_str());\
+    Napi::Error::New(env, stream.str().c_str()).ThrowAsJavaScriptException();\
+    return env.Null();\
+  }
 
 // Data structure representing our thread-safe function context.
 struct TsfnContext {
@@ -202,6 +214,8 @@ Napi::Value RegisterWindowMessageFunc(const Napi::CallbackInfo& info) {
 Napi::Value SetSystemVolumeFunc(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
 
+  ADDON_TRY
+
   if (info.Length() < 1) {
     Napi::TypeError::New(env, "Wrong number of arguments").ThrowAsJavaScriptException();
     return env.Null();
@@ -245,13 +259,16 @@ Napi::Value SetSystemVolumeFunc(const Napi::CallbackInfo& info) {
   }
 
   return Napi::Number::New(env, 0);
+
+  ADDON_CATCH
 }
 
 Napi::Value GetSystemVolumeFunc(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
 
-  EDataFlow edf = eRender; // default Speaker
+  ADDON_TRY
 
+  EDataFlow edf = eRender; // default Speaker
   if (info.Length() >= 1 && info[0].IsString()){
     std::string sType = (std::string) info[0].ToString();
     if(sType == "speaker") { edf = eRender; }
@@ -265,12 +282,16 @@ Napi::Value GetSystemVolumeFunc(const Napi::CallbackInfo& info) {
   float v = VolumeCtl::GetSystemVolume(edf);
   int volume = (int) (v * 100);
   return Napi::Number::New(env, volume);
+
+  ADDON_CATCH
 }
 
 // Exported JavaScript function. Creates the thread-safe function and native
 // thread. Promise is resolved in the thread-safe function's finalizer.
 Napi::Value StartListenSystemVolumeChangeFunc(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
+
+  ADDON_TRY
 
   EDataFlow edf = eRender; // default Speaker
   int funcIdx = 0; // default info[0]
@@ -314,10 +335,14 @@ Napi::Value StartListenSystemVolumeChangeFunc(const Napi::CallbackInfo& info) {
   // function's finalizer callback.
   //return ctx->deferred.Promise();
   return Napi::Number::New(env, ctx->id);
+
+  ADDON_CATCH
 }
 
 Napi::Value StopListenSystemVolumeChangeFunc(const Napi::CallbackInfo& info){
   Napi::Env env = info.Env();
+
+  ADDON_TRY
 
   if (info.Length() < 1) {
     Napi::TypeError::New(env, "Wrong number of arguments").ThrowAsJavaScriptException();
@@ -334,13 +359,17 @@ Napi::Value StopListenSystemVolumeChangeFunc(const Napi::CallbackInfo& info){
   VolumeCtl::MicrophoneVolumeCtl::GetInstance().UnRegisterControlChangeNotify(id);
 
   return env.Undefined();
+
+  ADDON_CATCH
 }
 
 Napi::Value StopAllListenSystemVolumeChangeFunc(const Napi::CallbackInfo& info){
   Napi::Env env = info.Env();
+  ADDON_TRY
   VolumeCtl::SpeakerVolumeCtl::GetInstance().UnRegisterAllControlChangeNotify();
   VolumeCtl::MicrophoneVolumeCtl::GetInstance().UnRegisterAllControlChangeNotify();
   return env.Undefined();
+  ADDON_CATCH
 }
 
 Napi::Value EncryptFunc(const Napi::CallbackInfo& info) {
